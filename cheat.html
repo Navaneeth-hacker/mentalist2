@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Mind Translator — Speak to Earbuds</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg: #000;
+    --fg: #0aff9d;
+    --accent: #00d1a6;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: monospace;
+    text-align: center;
+    padding: 28px;
+    font-size: 18px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 28px; margin: 8px 0 4px; }
+  p.small { font-size: 13px; opacity: .8; }
+  #card {
+    margin: 18px auto;
+    max-width: 720px;
+    padding: 18px;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.6);
+  }
+  input[type="text"]{
+    width: 70%;
+    padding: 12px;
+    font-size: 18px;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    background: rgba(10,10,10,.6);
+    color: var(--fg);
+    letter-spacing: 1px;
+  }
+  select, button {
+    padding: 10px 12px;
+    margin-left: 8px;
+    border-radius: 8px;
+    border: none;
+    font-size: 15px;
+    cursor: pointer;
+    background: var(--accent);
+    color: #001;
+  }
+  #output { margin-top: 18px; letter-spacing: 2px; font-weight: 700; font-size: 20px; }
+  .blink { animation: blink 1s infinite; }
+  @keyframes blink { 0%{opacity:0} 50%{opacity:1} 100%{opacity:0} }
+  .controls { margin-top: 12px; }
+  label { font-size: 13px; margin-right: 8px; opacity: .9; }
+  .small-muted { font-size: 13px; opacity: .7; margin-top: 10px; }
+  footer { margin-top: 20px; font-size: 12px; opacity: .7; }
+</style>
+</head>
+<body>
+
+<h1>Mind Translator v1.1</h1>
+<p class="blink">Scanning thoughts...</p>
+
+<div id="card">
+  <div>
+    <input id="textInput" type="text" placeholder="Type something (e.g. a name) and press Enter" autocomplete="off" />
+    <button id="speakBtn">Speak</button>
+  </div>
+
+  <div class="controls">
+    <label for="voiceSelect">Voice</label>
+    <select id="voiceSelect"></select>
+
+    <label for="autoToggle">Auto-speak</label>
+    <select id="autoToggle">
+      <option value="off">Off</option>
+      <option value="on">On (speak while typing)</option>
+    </select>
+
+    <label for="rate">Rate</label>
+    <select id="rate">
+      <option value="0.9">0.9</option>
+      <option value="1" selected>1</option>
+      <option value="1.2">1.2</option>
+      <option value="1.4">1.4</option>
+    </select>
+
+    <label for="pitch">Pitch</label>
+    <select id="pitch">
+      <option value="0.8">0.8</option>
+      <option value="1" selected>1</option>
+      <option value="1.2">1.2</option>
+    </select>
+  </div>
+
+  <div id="output">You are thinking about... <br><br><b id="thought">“LOVE”</b></div>
+
+  <p class="small-muted">
+    Instructions: Connect your Bluetooth earbuds from your phone/computer settings first.
+    Then type text here and press Enter or click Speak — the phrase will be read aloud and should play through the earbuds (if they are selected as audio output).
+  </p>
+
+  <footer>
+    Note: If no sound, check browser supports speechSynthesis and system audio output is set to your earbuds.
+  </footer>
+</div>
+
+<script>
+  // Basic UI refs
+  const input = document.getElementById('textInput');
+  const speakBtn = document.getElementById('speakBtn');
+  const thought = document.getElementById('thought');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const autoToggle = document.getElementById('autoToggle');
+  const rateEl = document.getElementById('rate');
+  const pitchEl = document.getElementById('pitch');
+
+  // Show initial message after small delay (like your original)
+  setTimeout(() => {
+    document.querySelector('.blink').style.display = 'none';
+    thought.innerText = '“LOVE”';
+    document.getElementById('output').scrollIntoView({ behavior: 'smooth' });
+  }, 3000);
+
+  // Check support
+  const supportsTTS = 'speechSynthesis' in window;
+  if (!supportsTTS) {
+    alert('Your browser does not support speech synthesis (speechSynthesis). Use Chrome, Edge, Safari or Firefox with latest version.');
+  }
+
+  // Populate voices when available
+  function populateVoices() {
+    const voices = speechSynthesis.getVoices();
+    voiceSelect.innerHTML = '';
+    voices.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = ${v.name} — ${v.lang} + (v.default ? ' (default)' : '');
+      voiceSelect.appendChild(opt);
+    });
+  }
+  populateVoices();
+  // voices may load asynchronously
+  speechSynthesis.onvoiceschanged = populateVoices;
+
+  // speak function
+  function speakText(text) {
+    if (!supportsTTS || !text) return;
+    // Cancel any ongoing utterance if user triggers new one
+    speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = speechSynthesis.getVoices();
+    const selIndex = Number(voiceSelect.value || 0);
+    if (voices[selIndex]) u.voice = voices[selIndex];
+    u.rate = Number(rateEl.value) || 1;
+    u.pitch = Number(pitchEl.value) || 1;
+    // Some platforms require user interaction before audio; this function is called from clicks/keypresses so ok.
+    speechSynthesis.speak(u);
+  }
+
+  // UI interactions
+  speakBtn.addEventListener('click', () => {
+    const txt = input.value.trim();
+    if (!txt) return;
+    thought.innerHTML = <b>“${escapeHtml(txt)}”</b>;
+    speakText(txt);
+  });
+
+  // Press Enter to speak
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      speakBtn.click();
+    }
+  });
+
+  // Auto-speak while typing (toggle)
+  let autoSpeakTimer = null;
+  input.addEventListener('input', () => {
+    const txt = input.value.trim();
+    // update preview immediately
+    thought.innerHTML = txt ? <b>“${escapeHtml(txt)}”</b> : <b>“LOVE”</b>;
+
+    if (autoToggle.value !== 'on') return;
+    // Debounce so it doesn't speak every keystroke instantly
+    if (autoSpeakTimer) clearTimeout(autoSpeakTimer);
+    autoSpeakTimer = setTimeout(() => {
+      if (txt) speakText(txt);
+    }, 450); // small debounce
+  });
+
+  // small helper to escape html
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, function (m) {
+      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[m];
+    });
+  }
+
+  // Helpful tip: On mobile, make sure page had at least one tap/click to allow audio.
+  // If user wants the app to "auto-play" without interaction, browsers usually block it.
+  // We cannot force audio device selection; it will play to system-selected output.
+</script>
+
+</body>
+</html>
